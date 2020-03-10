@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>IndexedDB</title>
+</head>
+<body>
+    <script>
+        
+        let connection = null;
+
+        // Requisitar abertura de conexão
+        const openRequest = indexedDB.open("jscangaceiro", 2);
+
+        // Cria ou altera um banco já existente
+        openRequest.onupgradeneeded = e => {
+            console.log('Cria ou altera um banco');
+
+            // Obtendo a conexão
+            connection = e.target.result;
+
+            /*
+               Verificamos se existe uma store. Se existir, apagamos e criamos uma
+               nova store  
+            */
+            if(connection.objectStoreNames.contains('negociacoes')) {
+                connection.deleteObjectStore('negociacoes');
+            }
+            
+            connection.createObjectStore('negociacoes', {autoIncrement : true});
+        }
+
+        // Conexão obtida com sucesso
+        openRequest.onsuccess = e => {
+            console.log('conexão obtida com sucesso!');
+
+            // e.target.result é uma instância de IDBDatabase
+            connection = e.target.result;
+        }
+
+        openRequest.onerror = e => {
+            console.log(e.target.error);
+        }
+
+        // Função para add negociações no banco
+        function add(){
+            const negotiation = new Negotiation(new Date(),200,1);
+
+            /*
+            o método connection.transaction recebe como primeiro parâmetro um array
+            com nome da store cuja transação queremos criar. E como segundo parâmetro,
+            o seu tipo (readwrite para escrita) (readonly para somente leitura).
+            */
+            const transaction = connection.transaction(['negociacoes'], 'readwrite');
+
+            /*
+            transaction.objectStore podemos realizar operações de persistência, como
+            inclusão, alteração e remoção.
+            */
+            const store = transaction.objectStore('negociacoes');
+
+            // Através da store, requisitamos um inclusão com store.add()
+            const request = store.add(negotiation);
+
+            request.onsuccess = e =>{
+                console.log('Negociação salva com sucesso!')
+
+            }
+
+            request.onerror = e => {
+                console.log('Não foi possível salvar a negociação');
+            }
+        }
+        function listAll() {
+
+            const negotiations = [];
+
+            // openCursor() retorna uma referência para um objeto que sabe
+            // iterar por cada objeto gravado na store.
+            const cursor = connection
+                .transaction(['negociacoes'], 'readwrite')
+                .objectStore('negociacoes')
+                .openCursor();
+                
+            cursor.onsuccess = e =>{
+                // Objeto ponteiro para uma negociação
+                const current = e.target.result;
+
+                // Se for diferente null, é porque ainda não há dado
+                if(current){
+                    
+                    const negotiation = new Negotiation(
+                        current.value._data,
+                        current.value._quantity,
+                        current.value._value
+                    );
+                    negotiations.push(negotiation);
+                    current.continue();
+                } else {
+                    // Quando current for null é por não há mais dados
+
+                    console.log(negotiations);
+                }
+            }
+
+            cursor.onerror = e => {
+                console.log('Error: ' + e.target.error.name);
+            }
+        }
+
+    </script>
+    <script src="app/domain/negotiation/Negotiation.js"></script>
+</body>
+</html>
